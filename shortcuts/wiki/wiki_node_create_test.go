@@ -111,8 +111,8 @@ func TestWikiShortcutsIncludeAllCommands(t *testing.T) {
 	t.Parallel()
 
 	shortcuts := Shortcuts()
-	if len(shortcuts) != 6 {
-		t.Fatalf("len(Shortcuts()) = %d, want 6", len(shortcuts))
+	if len(shortcuts) != 7 {
+		t.Fatalf("len(Shortcuts()) = %d, want 7", len(shortcuts))
 	}
 	if shortcuts[0].Command != "+move" {
 		t.Fatalf("shortcuts[0].Command = %q, want %q", shortcuts[0].Command, "+move")
