@@ -223,6 +223,81 @@ func TestWikiNodeListPassesParentNodeToken(t *testing.T) {
 	}
 }
 
+func TestWikiNodeListRejectsMyLibraryForBot(t *testing.T) {
+	t.Parallel()
+
+	factory, _, _, _ := cmdutil.TestFactory(t, wikiTestConfig())
+	err := mountAndRunWiki(t, WikiNodeList, []string{
+		"+node-list", "--space-id", "my_library", "--as", "bot",
+	}, factory, nil)
+	if err == nil || !strings.Contains(err.Error(), "bot identity does not support --space-id my_library") {
+		t.Fatalf("expected my_library bot rejection, got %v", err)
+	}
+}
+
+func TestWikiNodeListResolvesMyLibraryForUser(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	factory, stdout, _, reg := cmdutil.TestFactory(t, wikiTestConfig())
+
+	// Step 1: resolve my_library to the real space_id.
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/wiki/v2/spaces/my_library",
+		Body: map[string]interface{}{
+			"code": 0, "msg": "success",
+			"data": map[string]interface{}{
+				"space": map[string]interface{}{
+					"space_id":   "space_personal_42",
+					"name":       "My Library",
+					"space_type": "my_library",
+				},
+			},
+		},
+	})
+	// Step 2: list nodes in the resolved space.
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/wiki/v2/spaces/space_personal_42/nodes",
+		Body: map[string]interface{}{
+			"code": 0, "msg": "success",
+			"data": map[string]interface{}{
+				"has_more": false,
+				"items": []interface{}{
+					map[string]interface{}{
+						"space_id":   "space_personal_42",
+						"node_token": "wik_personal_1",
+						"title":      "Personal Note",
+					},
+				},
+			},
+		},
+	})
+
+	err := mountAndRunWiki(t, WikiNodeList, []string{
+		"+node-list", "--space-id", "my_library", "--as", "user",
+	}, factory, stdout)
+	if err != nil {
+		t.Fatalf("mountAndRunWiki() error = %v", err)
+	}
+
+	var envelope struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Nodes []map[string]interface{} `json:"nodes"`
+			Total float64                  `json:"total"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("unmarshal stdout: %v", err)
+	}
+	if envelope.Data.Total != 1 {
+		t.Fatalf("total = %v, want 1", envelope.Data.Total)
+	}
+	if envelope.Data.Nodes[0]["space_id"] != "space_personal_42" {
+		t.Fatalf("nodes[0].space_id = %v, want space_personal_42", envelope.Data.Nodes[0]["space_id"])
+	}
+}
+
 // ── +node-copy ───────────────────────────────────────────────────────────────
 
 func TestWikiNodeCopyRequiresTargetSpaceOrParent(t *testing.T) {

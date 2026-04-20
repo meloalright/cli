@@ -21,18 +21,23 @@ set -euo pipefail
 SKILLS_DIR="${1:-skills}"
 ERRORS=0
 
-# Patterns that indicate a realistic-looking Lark token value inside a string.
-# Matches JSON-style: "field": "token_value" or markdown backtick spans.
+# Patterns that indicate a realistic-looking Lark token value.
+# Three forms are detected:
+#   1. JSON-style quoted strings: "field": "token_value"
+#   2. Markdown backtick spans:   `token_value`
+#   3. Bare tokens:               --flag wikcnABC123 (e.g. inside fenced code blocks)
+#
 # Token prefixes used by Lark Open Platform:
 #   wikcn  doccn  docx  shtcn  bascn  fldcn  vewcn  tbln  ou_  cli_  obcn  flec
 #
-# Excluded (clearly fake):
-#   - Values ending with EXAMPLE_TOKEN  (e.g. wikcn_EXAMPLE_TOKEN)
-#   - Values that are all uppercase X   (e.g. bascnXXXXXXXX)
-#   - Values containing only X/_/<>     (e.g. <your_token>)
+# Excluded (clearly fake, matched by PLACEHOLDER_RE below):
+#   - Values containing EXAMPLE / _TOKEN / XXXX / your_ / _here
+#   - Angle-bracket placeholders <your_token>
 # Require at least one digit in the suffix — real API tokens are always alphanumeric
 # with digits. Pure-letter suffixes (e.g. ou_manager, ou_director) are clearly fake names.
-REALISTIC_TOKEN_RE='"(wikcn|doccn|docx[a-z]|shtcn|bascn|fldcn|vewcn|tbln|obcn|flec|ou_|cli_)[A-Za-z0-9]*[0-9][A-Za-z0-9]{3,}"|`(wikcn|doccn|docx[a-z]|shtcn|bascn|fldcn|vewcn|tbln|obcn|flec|ou_|cli_)[A-Za-z0-9]*[0-9][A-Za-z0-9]{3,}`'
+PREFIXES='(wikcn|doccn|docx[a-z]|shtcn|bascn|fldcn|vewcn|tbln|obcn|flec|ou_|cli_)'
+TOKEN_BODY="${PREFIXES}"'[A-Za-z0-9]*[0-9][A-Za-z0-9]{3,}'
+REALISTIC_TOKEN_RE="\"${TOKEN_BODY}\"|\`${TOKEN_BODY}\`|\\b${TOKEN_BODY}\\b"
 PLACEHOLDER_RE='(EXAMPLE|_TOKEN|XXXX|xxxx|<|>|your_|_here)'
 
 while IFS= read -r -d '' file; do
