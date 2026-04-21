@@ -83,6 +83,105 @@ p, h1-h9, ul, ol, li, table, thead, tbody, tr, th, td, blockquote, pre, code, hr
 - `<th>` / `<td>` 增加 `background-color` 和 `vertical-align`（top | middle | bottom）
 - 有表头时第一行在 `<thead>` 用 `<th>`，其余在 `<tbody>` 用 `<td>`
 - 合并单元格仅起始格输出 `colspan` / `rowspan`，被合并的格不出现
+- 单元格内可嵌套文本 + 行内格式标签（`<b>`、`<em>`、`<a>`、`<span>` 等）；跨行文字用 `<br/>`。**不**在单元格内嵌套 `<p>`、`<ul>`、`<callout>` 等块级容器。
+
+> **结构性变更**（加行 / 删列 / 合并 / 列宽 / 单元格样式）走 [`lark-doc-table-ops.md`](lark-doc-table-ops.md) 的 `table_*` 指令；本节只讲如何用 XML 表达表格。
+
+## 表格画廊 — 五种常用场景
+
+### 1. 简单 3×3 表格（基线）
+
+```xml
+<table>
+  <thead><tr><th>列A</th><th>列B</th><th>列C</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>3</td></tr>
+    <tr><td>4</td><td>5</td><td>6</td></tr>
+  </tbody>
+</table>
+```
+
+### 2. 表头横向合并（`colspan`）— 做跨列标题
+
+```xml
+<table>
+  <thead>
+    <tr><th colspan="3" background-color="light-blue"><b>季度报表</b></th></tr>
+    <tr><th>项目</th><th>负责人</th><th>进度</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>迁移 A</td><td>张三</td><td>80%</td></tr>
+    <tr><td>迁移 B</td><td>李四</td><td>30%</td></tr>
+  </tbody>
+</table>
+```
+
+### 3. 纵向合并（`rowspan`）— 做分组标签
+
+```xml
+<table>
+  <thead><tr><th>类别</th><th>子项</th><th>数量</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="2">饮料</td><td>咖啡</td><td>12</td></tr>
+    <tr><td>茶</td><td>8</td></tr>                              <!-- 注意：本行无"饮料"单元格，被上方合并 -->
+    <tr><td>小吃</td><td>饼干</td><td>20</td></tr>
+  </tbody>
+</table>
+```
+
+### 4. 单元格样式 — 背景色 + 垂直对齐
+
+```xml
+<table>
+  <tbody>
+    <tr>
+      <td background-color="light-green" vertical-align="top">左上</td>
+      <td background-color="light-yellow" vertical-align="middle">中</td>
+      <td background-color="light-red" vertical-align="bottom">右下</td>
+    </tr>
+    <tr>
+      <td background-color="rgb(230,240,255)">自定义 RGB 背景</td>
+      <td>默认样式</td>
+      <td><b>加粗</b> + <span text-color="blue">蓝字</span></td>
+    </tr>
+  </tbody>
+</table>
+```
+
+### 5. 列宽控制（`<colgroup>` + `<col>`）
+
+```xml
+<table>
+  <colgroup>
+    <col width="80"/>
+    <col width="200"/>
+    <col width="120"/>
+  </colgroup>
+  <thead><tr><th>编号</th><th>说明（宽列）</th><th>状态</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>本列宽 200px，用于较长文本</td><td>✅</td></tr>
+  </tbody>
+</table>
+```
+
+> 也可用 `<col span="2" width="100"/>` 让相邻多列共享一个宽度定义。
+
+## 表格属性一览
+
+| 标签 | 属性 | 取值 | 默认 / 说明 |
+|------|------|------|-------------|
+| `<table>` | — | — | 容器，无特殊属性 |
+| `<colgroup>` | — | — | 可选容器，紧跟 `<table>`，包含一组 `<col>` |
+| `<col>` | `span` | 正整数 | 覆盖几个连续列，默认 `1` |
+| `<col>` | `width` | 像素整数 | 列宽（px），建议 `60 ~ 600` |
+| `<thead>` / `<tbody>` | — | — | 语义分组；第一 `<tr>` 放 `<thead>` 的视觉表头 |
+| `<tr>` | — | — | 无特殊属性 |
+| `<th>` / `<td>` | `colspan` | 正整数 | 横向合并跨度，默认 `1`，上限 `100` |
+| `<th>` / `<td>` | `rowspan` | 正整数 | 纵向合并跨度，默认 `1`，上限 `100` |
+| `<th>` / `<td>` | `background-color` | 命名色（`light-{基础色}` / `medium-gray`）或 `rgb(r,g,b)` / `rgba(r,g,b,a)` | 默认无背景 |
+| `<th>` / `<td>` | `vertical-align` | `top` \| `middle` \| `bottom` | 默认 `top` |
+
+权威实现参考：`docx_engine/biz/export/xml/token/table.go:27-99`。
 
 # 六、美化系统
 - 颜色优先使用命名色，也可写 `rgb(r,g,b)` / `rgba(r,g,b,a)`。**基础色（7 色）**：gray, red, orange, yellow, green, blue, purple

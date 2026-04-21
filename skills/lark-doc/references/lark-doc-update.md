@@ -9,7 +9,7 @@
 >
 > **未读完以上文件就生成内容会导致格式错误或样式不达标。**
 
-通过八种指令精确更新飞书云文档。支持字符串级别和 block 级别的操作。
+通过十六种指令精确更新飞书云文档。支持字符串级别、block 级别和表格结构级别的操作。
 
 > **⚠️ 格式选择规则：始终使用 XML 格式（默认），除非用户明确要求使用 Markdown。** 不要因为 Markdown 写起来更简单就自行切换为 Markdown。
 
@@ -40,6 +40,20 @@
 | `overwrite` | ⚠️ 清空文档后全文重写（可能丢失图片、评论） | `--content` |
 | `append` | 在文档末尾追加内容（等价于 `block_insert_after --block-id -1`） | `--content` |
 | `block_move_after` | 移动已有 block 到指定位置 | `--block-id` + (`--content` 或 `--src-block-ids`) |
+
+### 表格结构指令（table_*）
+
+> 表格结构操作的完整参考（工作流、参数详情、示例）见 [`lark-doc-table-ops.md`](lark-doc-table-ops.md)。
+
+| 指令 | 说明 | 必需参数 |
+|------|------|----------|
+| `table_insert_rows` | 在表格中插入行 | `--table-block-id` `--row-index` |
+| `table_insert_cols` | 在表格中插入列 | `--table-block-id` `--col`（字母） |
+| `table_delete_rows` | 删除行范围（左闭右开） | `--table-block-id` `--row-start` `--row-end` |
+| `table_delete_cols` | 删除列范围（字母，两端包含） | `--table-block-id` `--col-start` `--col-end` |
+| `table_merge_cells` | 合并矩形区域单元格 | `--table-block-id` `--range`（A1:C3） |
+| `table_unmerge_cells` | 拆分已合并的单元格 | `--table-block-id` `--cell`（A1） |
+| `table_update_property` | 表格属性（`--col` 列宽/表头）或单元格属性（`--cell` 背景色/对齐） | `--table-block-id` + 模式参数 |
 
 ## 指令示例
 
@@ -215,4 +229,5 @@ lark-cli docs +update --api-version v2 --doc "<doc_id>" --command str_replace \
 - [`lark-doc-fetch.md`](lark-doc-fetch.md) — 获取文档
 - [`lark-doc-create.md`](lark-doc-create.md) — 创建文档
 - [`lark-doc-media-insert.md`](lark-doc-media-insert.md) — 插入图片/文件到文档
+- [`lark-doc-table-ops.md`](lark-doc-table-ops.md) — 表格结构操作参考（table_* 指令完整工作流和示例）
 - [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md) — 认证和全局参数
