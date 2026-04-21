@@ -7,6 +7,7 @@ import (
 	"context"
 
 	extcs "github.com/larksuite/cli/extension/contentsafety"
+	"github.com/larksuite/cli/internal/core"
 )
 
 // regexProvider implements extcs.Provider using regex rules from config file.
@@ -55,4 +56,10 @@ func (p *regexProvider) loadOrCreate() (*Config, error) {
 		return nil, err
 	}
 	return LoadConfig(p.configDir)
+}
+
+func init() {
+	extcs.Register(&regexProvider{
+		configDir: core.GetConfigDir(),
+	})
 }
