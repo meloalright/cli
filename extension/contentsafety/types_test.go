@@ -5,6 +5,7 @@ package contentsafety
 
 import (
 	"context"
+	"io"
 	"testing"
 )
 
@@ -33,7 +34,7 @@ func TestProviderInterface(t *testing.T) {
 	if p.Name() != "stub" {
 		t.Errorf("Name() = %q, want %q", p.Name(), "stub")
 	}
-	alert, err := p.Scan(context.Background(), ScanRequest{Path: "test", Data: nil})
+	alert, err := p.Scan(context.Background(), ScanRequest{Path: "test", Data: nil, ErrOut: io.Discard})
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}

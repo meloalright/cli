@@ -6,7 +6,8 @@ package contentsafety
 import (
 	"context"
 	"io"
-	"os"
+	"sort"
+	"sync"
 
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/core"
@@ -14,16 +15,16 @@ import (
 
 // regexProvider implements extcs.Provider using regex rules from config file.
 // Config is loaded on every Scan() call (no caching) so changes take
-// effect immediately.
+// effect immediately. mu serializes lazy config creation.
 type regexProvider struct {
 	configDir string
-	errOut    io.Writer
+	mu        sync.Mutex
 }
 
 func (p *regexProvider) Name() string { return "regex" }
 
 func (p *regexProvider) Scan(ctx context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
-	cfg, err := p.loadOrCreate()
+	cfg, err := p.loadOrCreate(req.ErrOut)
 	if err != nil {
 		return nil, err
 	}
@@ -47,15 +48,27 @@ func (p *regexProvider) Scan(ctx context.Context, req extcs.ScanRequest) (*extcs
 	for id := range hits {
 		matched = append(matched, id)
 	}
+	sort.Strings(matched)
 	return &extcs.Alert{Provider: p.Name(), MatchedRules: matched}, nil
 }
 
-func (p *regexProvider) loadOrCreate() (*Config, error) {
+// loadOrCreate loads config, creating the default on first use.
+// mu serializes creation so concurrent Scan calls don't race on first-use.
+func (p *regexProvider) loadOrCreate(errOut io.Writer) (*Config, error) {
 	cfg, err := LoadConfig(p.configDir)
 	if err == nil {
 		return cfg, nil
 	}
-	if errC := EnsureDefaultConfig(p.configDir, p.errOut); errC != nil {
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Re-check after acquiring the lock (another goroutine may have created it).
+	cfg, err = LoadConfig(p.configDir)
+	if err == nil {
+		return cfg, nil
+	}
+	if errC := EnsureDefaultConfig(p.configDir, errOut); errC != nil {
 		return nil, err
 	}
 	return LoadConfig(p.configDir)
@@ -64,6 +77,5 @@ func (p *regexProvider) loadOrCreate() (*Config, error) {
 func init() {
 	extcs.Register(&regexProvider{
 		configDir: core.GetConfigDir(),
-		errOut:    os.Stderr,
 	})
 }

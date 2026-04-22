@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/larksuite/cli/internal/vfs"
 )
 
 const configFileName = "content-safety.json"
@@ -32,7 +34,7 @@ type rawRule struct {
 
 func LoadConfig(configDir string) (*Config, error) {
 	path := filepath.Join(configDir, configFileName)
-	data, err := os.ReadFile(path)
+	data, err := vfs.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read content-safety config: %w", err)
 	}
@@ -53,17 +55,17 @@ func LoadConfig(configDir string) (*Config, error) {
 
 func EnsureDefaultConfig(configDir string, errOut io.Writer) error {
 	path := filepath.Join(configDir, configFileName)
-	if _, err := os.Stat(path); err == nil {
+	if _, err := vfs.Stat(path); err == nil {
 		return nil
 	}
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := vfs.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 	data, err := json.MarshalIndent(defaultRawConfig(), "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal default config: %w", err)
 	}
-	if err := os.WriteFile(path, append(data, '\n'), 0644); err != nil {
+	if err := vfs.WriteFile(path, append(data, '\n'), fs.FileMode(0644)); err != nil {
 		return err
 	}
 	fmt.Fprintf(errOut, "notice: created default content-safety config at %s\n", path)

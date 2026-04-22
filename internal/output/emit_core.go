@@ -95,7 +95,7 @@ func runContentSafety(cobraPath string, data any, errOut io.Writer) (*extcs.Aler
 				ch <- result{nil, fmt.Errorf("content safety panic: %v", r)}
 			}
 		}()
-		a, e := p.Scan(ctx, extcs.ScanRequest{Path: cmdPath, Data: data})
+		a, e := p.Scan(ctx, extcs.ScanRequest{Path: cmdPath, Data: data, ErrOut: errOut})
 		ch <- result{a, e}
 	}()
 
