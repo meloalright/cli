@@ -175,7 +175,7 @@ func TestBuildPreviewResult(t *testing.T) {
 
 	t.Run("append uses note with line count", func(t *testing.T) {
 		t.Parallel()
-		res := buildPreviewResult("append", "DOC", "new paragraph\nsecond line", "", "", before)
+		res := buildPreviewResult("append", "DOC", "new paragraph\nsecond line", "", "", "", before)
 		if res.PayloadLines != 2 {
 			t.Errorf("want 2 payload lines, got %d", res.PayloadLines)
 		}
@@ -186,7 +186,7 @@ func TestBuildPreviewResult(t *testing.T) {
 
 	t.Run("overwrite warns about discard", func(t *testing.T) {
 		t.Parallel()
-		res := buildPreviewResult("overwrite", "DOC", "new doc content", "", "", before)
+		res := buildPreviewResult("overwrite", "DOC", "new doc content", "", "", "", before)
 		if !strings.Contains(res.Note, "discarded") {
 			t.Errorf("note should mention discard, got %q", res.Note)
 		}
@@ -194,7 +194,7 @@ func TestBuildPreviewResult(t *testing.T) {
 
 	t.Run("replace_range with unique selection records single match", func(t *testing.T) {
 		t.Parallel()
-		res := buildPreviewResult("replace_range", "DOC", "new intro", "old intro", "", before)
+		res := buildPreviewResult("replace_range", "DOC", "new intro", "old intro", "", "", before)
 		if res.MatchCount != 1 {
 			t.Fatalf("want 1 match, got %d; note=%s", res.MatchCount, res.Note)
 		}
@@ -205,7 +205,7 @@ func TestBuildPreviewResult(t *testing.T) {
 
 	t.Run("replace_range with no match surfaces warning", func(t *testing.T) {
 		t.Parallel()
-		res := buildPreviewResult("replace_range", "DOC", "new", "nonexistent", "", before)
+		res := buildPreviewResult("replace_range", "DOC", "new", "nonexistent", "", "", before)
 		if res.MatchCount != 0 {
 			t.Errorf("want 0 matches, got %d", res.MatchCount)
 		}
@@ -216,9 +216,80 @@ func TestBuildPreviewResult(t *testing.T) {
 
 	t.Run("selection-by-title finds section", func(t *testing.T) {
 		t.Parallel()
-		res := buildPreviewResult("replace_range", "DOC", "new section body", "", "## Overview", before)
+		res := buildPreviewResult("replace_range", "DOC", "new section body", "", "## Overview", "", before)
 		if res.MatchCount != 1 {
 			t.Fatalf("want 1 match, got %d; note=%s", res.MatchCount, res.Note)
 		}
 	})
+
+	t.Run("replace_all with multi-match emits tailored note", func(t *testing.T) {
+		t.Parallel()
+		md := "foo bar\nbar foo\nfoo again"
+		res := buildPreviewResult("replace_all", "DOC", "qux", "foo", "", "", md)
+		if res.MatchCount != 3 {
+			t.Fatalf("want 3 matches, got %d", res.MatchCount)
+		}
+		if !strings.Contains(res.Note, "replace_all would apply to all") {
+			t.Errorf("note should call out replace_all semantics, got %q", res.Note)
+		}
+	})
+
+	t.Run("new_title is propagated to preview", func(t *testing.T) {
+		t.Parallel()
+		res := buildPreviewResult("append", "DOC", "body", "", "", "Renamed Doc", before)
+		if res.NewTitle != "Renamed Doc" {
+			t.Errorf("want NewTitle=Renamed Doc, got %q", res.NewTitle)
+		}
+	})
+}
+
+func TestFindSelectionWithEllipsisSameLineOrdering(t *testing.T) {
+	t.Parallel()
+
+	// "B...A" should not match a line where A appears before B.
+	md := "the quick brown fox"
+	matches := findSelectionWithEllipsis(md, "fox...quick")
+	if len(matches) != 0 {
+		t.Errorf("expected no match for reversed same-line ellipsis, got %d", len(matches))
+	}
+
+	// Same line, correct order, still works.
+	matches = findSelectionWithEllipsis(md, "quick...fox")
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match for same-line quick...fox, got %d", len(matches))
+	}
+	if matches[0].StartLine != 1 || matches[0].EndLine != 1 {
+		t.Errorf("want 1..1, got %d..%d", matches[0].StartLine, matches[0].EndLine)
+	}
+}
+
+func TestFindSelectionByTitleIgnoresFencedHeadings(t *testing.T) {
+	t.Parallel()
+
+	md := strings.Join([]string{
+		"# Real H1",
+		"",
+		"```markdown",
+		"## Fake Heading",
+		"```",
+		"",
+		"## Real H2",
+		"body",
+	}, "\n")
+
+	// Fenced "## Fake Heading" must not match.
+	matches := findSelectionByTitle(md, "## Fake Heading")
+	if len(matches) != 0 {
+		t.Errorf("fenced heading should not match, got %d match(es)", len(matches))
+	}
+
+	// And the fenced line must not be treated as a section terminator for
+	// outer headings either — searching for H1 should capture everything.
+	matches = findSelectionByTitle(md, "# Real H1")
+	if len(matches) != 1 {
+		t.Fatalf("want 1 match for H1, got %d", len(matches))
+	}
+	if !strings.Contains(matches[0].Snippet, "body") {
+		t.Errorf("H1 section should reach through fenced code to final body, got snippet:\n%s", matches[0].Snippet)
+	}
 }

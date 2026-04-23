@@ -111,6 +111,7 @@ var DocsUpdate = common.Shortcut{
 				markdown,
 				runtime.Str("selection-with-ellipsis"),
 				runtime.Str("selection-by-title"),
+				runtime.Str("new-title"),
 				fixExportedMarkdown(before),
 			)
 			runtime.Out(preview, nil)

@@ -90,6 +90,7 @@ type previewResult struct {
 	Matches         []previewMatch `json:"matches,omitempty"`
 	PayloadMarkdown string         `json:"payload_markdown,omitempty"`
 	PayloadLines    int            `json:"payload_lines,omitempty"`
+	NewTitle        string         `json:"new_title,omitempty"`
 	Note            string         `json:"note,omitempty"`
 }
 
@@ -117,19 +118,28 @@ func findSelectionWithEllipsis(markdown, selection string) []previewMatch {
 	}
 	var matches []previewMatch
 	for i, line := range lines {
-		if !strings.Contains(line, start) {
+		startIdx := strings.Index(line, start)
+		if startIdx < 0 {
 			continue
 		}
 		// Find the first subsequent line (or same line) containing end.
+		// On the same line, end must appear strictly after start to avoid
+		// a false "A...B" match when the document actually reads "B ... A".
 		for j := i; j < len(lines); j++ {
-			if strings.Contains(lines[j], end) {
-				matches = append(matches, previewMatch{
-					StartLine: i + 1,
-					EndLine:   j + 1,
-					Snippet:   strings.Join(lines[i:j+1], "\n"),
-				})
-				break
+			if j == i {
+				after := line[startIdx+len(start):]
+				if !strings.Contains(after, end) {
+					continue
+				}
+			} else if !strings.Contains(lines[j], end) {
+				continue
 			}
+			matches = append(matches, previewMatch{
+				StartLine: i + 1,
+				EndLine:   j + 1,
+				Snippet:   strings.Join(lines[i:j+1], "\n"),
+			})
+			break
 		}
 	}
 	return matches
@@ -162,8 +172,16 @@ func findSelectionByTitle(markdown, title string) []previewMatch {
 	}
 	targetText := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(title), "#"))
 	lines := strings.Split(markdown, "\n")
+	// Pre-compute fence state for each line so the outer and inner scans
+	// both see a consistent "in-fence" signal. Heading-looking lines inside
+	// ```…``` or ~~~…~~~ are code content, not real headings, and must not
+	// start a match or terminate a matched section.
+	inFence := fenceStateByLine(lines)
 	var matches []previewMatch
 	for i, line := range lines {
+		if inFence[i] {
+			continue
+		}
 		level := previewAtxHeadingLevel(line)
 		if level != targetLevel {
 			continue
@@ -172,9 +190,12 @@ func findSelectionByTitle(markdown, title string) []previewMatch {
 		if headingText != targetText {
 			continue
 		}
-		// Find section end: next heading of equal or shallower level.
+		// Find section end: next non-fenced heading of equal or shallower level.
 		end := len(lines)
 		for j := i + 1; j < len(lines); j++ {
+			if inFence[j] {
+				continue
+			}
 			if lvl := previewAtxHeadingLevel(lines[j]); lvl != 0 && lvl <= targetLevel {
 				end = j
 				break
@@ -189,14 +210,34 @@ func findSelectionByTitle(markdown, title string) []previewMatch {
 	return matches
 }
 
+// fenceStateByLine returns a bool slice where result[i] reports whether
+// lines[i] sits inside a fenced code block (between a ```/~~~ opener and
+// its matching closer). The opener/closer lines themselves are reported as
+// inside-fence so heading matching skips them too.
+func fenceStateByLine(lines []string) []bool {
+	state := make([]bool, len(lines))
+	inFence := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			state[i] = true
+			inFence = !inFence
+			continue
+		}
+		state[i] = inFence
+	}
+	return state
+}
+
 // buildPreviewResult constructs the preview output object for a given
 // update invocation. It never calls MCP — it operates on the already-
 // fetched markdown snapshot. The caller decides when to skip the actual
 // write (currently: always, when --preview is set).
-func buildPreviewResult(mode, docID, markdown, selectionWithEllipsis, selectionByTitle, beforeMarkdown string) *previewResult {
+func buildPreviewResult(mode, docID, markdown, selectionWithEllipsis, selectionByTitle, newTitle, beforeMarkdown string) *previewResult {
 	res := &previewResult{
-		Mode:  mode,
-		DocID: docID,
+		Mode:     mode,
+		DocID:    docID,
+		NewTitle: newTitle,
 	}
 	res.PayloadMarkdown = markdown
 	if markdown != "" {
@@ -222,7 +263,9 @@ func buildPreviewResult(mode, docID, markdown, selectionWithEllipsis, selectionB
 	switch {
 	case res.MatchCount == 0:
 		res.Note = "selection did not match any line in the fetched markdown snapshot; the real update may still succeed if the server resolves selection differently, but you probably want to narrow the selection first"
-	case res.MatchCount > 1 && mode != "replace_all":
+	case res.MatchCount > 1 && mode == "replace_all":
+		res.Note = fmt.Sprintf("selection matches %d locations; replace_all would apply to all matches", res.MatchCount)
+	case res.MatchCount > 1:
 		res.Note = fmt.Sprintf("selection matches %d locations; only replace_all is defined to apply to all matches — other modes act on the first match and the result may be non-deterministic across retries", res.MatchCount)
 	case res.MatchCount == 1:
 		res.Note = "selection matches exactly one location"
