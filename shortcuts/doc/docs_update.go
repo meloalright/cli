@@ -43,6 +43,7 @@ var DocsUpdate = common.Shortcut{
 		{Name: "selection-with-ellipsis", Desc: "content locator (e.g. 'start...end')"},
 		{Name: "selection-by-title", Desc: "title locator (e.g. '## Section')"},
 		{Name: "new-title", Desc: "also update document title"},
+		{Name: "preview", Type: "bool", Desc: "skip the write; fetch the document, locate the selection, and emit a preview of where the update would land and what payload would be sent. Useful for Agent self-check before committing to a write."},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		mode := runtime.Str("mode")
@@ -95,6 +96,26 @@ var DocsUpdate = common.Shortcut{
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		mode := runtime.Str("mode")
 		markdown := runtime.Str("markdown")
+
+		// Preview short-circuits the write path entirely: fetch the document,
+		// locate the selection, and emit a structured preview. Useful for
+		// Agents to self-check before committing to a mutation.
+		if runtime.Bool("preview") {
+			before, err := fetchMarkdownForPreview(runtime, runtime.Str("doc"))
+			if err != nil {
+				return err
+			}
+			preview := buildPreviewResult(
+				mode,
+				runtime.Str("doc"),
+				markdown,
+				runtime.Str("selection-with-ellipsis"),
+				runtime.Str("selection-by-title"),
+				fixExportedMarkdown(before),
+			)
+			runtime.Out(preview, nil)
+			return nil
+		}
 
 		// Static semantic checks run before the MCP call so users see
 		// warnings even if the subsequent request fails. They never block
