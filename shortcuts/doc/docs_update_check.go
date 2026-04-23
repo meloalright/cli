@@ -64,7 +64,11 @@ func checkDocsUpdateReplaceHeadingBlockType(mode, markdown, selectionByTitle str
 	if mode != "replace_range" {
 		return ""
 	}
-	targetLevel := atxHeadingLevel(selectionByTitle)
+	// --selection-by-title is a user-typed flag value, so strip surrounding
+	// whitespace before interpreting it as a heading line. The helper itself
+	// keeps CommonMark semantics (leading-space sensitivity) for markdown
+	// payload lines where whitespace is significant.
+	targetLevel := atxHeadingLevel(strings.TrimSpace(selectionByTitle))
 	if targetLevel == 0 {
 		return ""
 	}
@@ -80,25 +84,35 @@ func checkDocsUpdateReplaceHeadingBlockType(mode, markdown, selectionByTitle str
 }
 
 // atxHeadingLevel returns the ATX heading level (1..6) of an ATX heading
-// line such as "## Section", or 0 when the line is not an ATX heading. The
-// selection-by-title validator already requires a leading '#', so this is a
-// narrow helper; it also trims whitespace to tolerate stray indentation.
+// line such as "## Section", or 0 when the line is not an ATX heading.
+//
+// The matching rules follow CommonMark §4.2:
+//
+//   - 0..3 leading spaces are permitted; 4+ spaces (or any leading tab, which
+//     counts as 4 columns) turn the line into an indented code block.
+//   - The opening run of '#' is 1..6 characters.
+//   - The run must be followed by a space, a tab, or end of line. Empty
+//     headings (e.g. "##") are valid per spec.
 func atxHeadingLevel(line string) int {
-	trimmed := strings.TrimSpace(line)
+	body, ok := fenceIndentOK(line)
+	if !ok {
+		return 0
+	}
 	level := 0
-	for level < len(trimmed) && trimmed[level] == '#' {
+	for level < len(body) && body[level] == '#' {
 		level++
 	}
 	if level == 0 || level > 6 {
 		return 0
 	}
-	if level == len(trimmed) {
-		return 0
+	if level == len(body) {
+		return level
 	}
-	if trimmed[level] != ' ' {
-		return 0
+	switch body[level] {
+	case ' ', '\t':
+		return level
 	}
-	return level
+	return 0
 }
 
 // firstProseHeadingLevel returns the ATX heading level of the first non-blank

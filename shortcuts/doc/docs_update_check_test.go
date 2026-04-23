@@ -443,7 +443,6 @@ func TestCheckDocsUpdateReplaceHeadingBlockType(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := checkDocsUpdateReplaceHeadingBlockType(tc.mode, tc.markdown, tc.selectionByTitle)
@@ -465,10 +464,14 @@ func TestAtxHeadingLevel(t *testing.T) {
 		"## H2":         2,
 		"###### H6":     6,
 		"####### x":     0, // 7 hashes is not a heading
-		"##":            0, // no content
+		"##":            2, // CommonMark: empty ATX heading is valid
+		"##\tH2":        2, // tab after hashes is valid
 		"##no-space":    0,
 		"":              0,
-		"  ## indented": 2,
+		"  ## indented": 2, // 2 leading spaces OK (≤3)
+		"   ## edge":    2, // exactly 3 leading spaces still OK
+		"    ## code":   0, // 4 spaces becomes indented code block
+		"\t## code":     0, // leading tab counts as 4 columns
 		"not a heading": 0,
 	}
 	for input, want := range cases {
