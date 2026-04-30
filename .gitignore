@@ -39,3 +39,5 @@ cmd/api/download.bin
 app.log
 /sidecar-server-demo
 /server-demo
+
+lark-env.sh

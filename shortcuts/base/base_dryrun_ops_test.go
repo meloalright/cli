@@ -284,3 +284,38 @@ func TestDryRunViewOps(t *testing.T) {
 
 	assertDryRunContains(t, dryRunViewGetProperty(listRT, "a/b"), "GET /open-apis/base/v3/bases/app_x/tables/tbl_1/views/viw_1/a%2Fb")
 }
+
+func TestDryRunFormSubmit(t *testing.T) {
+	ctx := context.Background()
+
+	// fields-only mode (share-token, no attachments)
+	shareTokenRT := newBaseTestRuntime(
+		map[string]string{
+			"share-token": "shrXXXX",
+			"json":        `{"fields":{"服务评分":5,"评价内容":"服务态度好"}}`,
+		},
+		nil, nil,
+	)
+	assertDryRunContains(t,
+		dryRunFormSubmit(ctx, shareTokenRT),
+		"POST /open-apis/base/v3/bases/tables/forms/submit",
+		`"share_token":"shrXXXX"`,
+		`"服务评分":5`,
+		`"评价内容":"服务态度好"`)
+
+	// with attachments inside --json: { "fields": {...}, "attachments": { fieldName: [paths...] } }
+	withAttachmentsRT := newBaseTestRuntime(
+		map[string]string{
+			"base-token":  "app_x",
+			"share-token": "shrXXXX",
+			"json":        `{"fields":{"服务评分":5},"attachments":{"附件":["./report.pdf","./image.png"],"截图":["./screenshot.png"]}}`,
+		},
+		nil, nil,
+	)
+	assertDryRunContains(t,
+		dryRunFormSubmit(ctx, withAttachmentsRT),
+		"POST /open-apis/base/v3/bases/tables/forms/submit",
+		"Upload attachment for field \"附件\": report.pdf",
+		"Upload attachment for field \"附件\": image.png",
+		"Upload attachment for field \"截图\": screenshot.png")
+}

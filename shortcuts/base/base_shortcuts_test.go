@@ -138,8 +138,9 @@ func TestShortcutsCatalog(t *testing.T) {
 		"+role-create", "+role-delete", "+role-update", "+role-list", "+role-get", "+advperm-enable", "+advperm-disable",
 		"+workflow-list", "+workflow-get", "+workflow-create", "+workflow-update", "+workflow-enable", "+workflow-disable",
 		"+data-query",
-		"+form-create", "+form-delete", "+form-list", "+form-update", "+form-get",
+		"+form-create", "+form-delete", "+form-list", "+form-update", "+form-get", "+form-detail",
 		"+form-questions-create", "+form-questions-delete", "+form-questions-update", "+form-questions-list",
+		"+form-submit",
 		"+dashboard-list", "+dashboard-get", "+dashboard-create", "+dashboard-update", "+dashboard-delete", "+dashboard-arrange",
 		"+dashboard-block-list", "+dashboard-block-get", "+dashboard-block-create", "+dashboard-block-update", "+dashboard-block-delete",
 	}
