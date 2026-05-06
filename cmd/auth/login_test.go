@@ -226,6 +226,69 @@ func TestCollectScopesForDomains_NonexistentDomain(t *testing.T) {
 	}
 }
 
+func TestValidateExplicitScopes_RejectsUnknownScopes(t *testing.T) {
+	err := validateExplicitScopes("base:app:create malformed:scope")
+	t.Log(err)
+	if err == nil {
+		t.Fatal("expected validation error for unknown scope")
+	}
+	if !strings.Contains(err.Error(), "invalid scope(s): malformed:scope") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "auth scopes --format pretty") {
+		t.Fatalf("expected auth scopes hint, got: %v", err)
+	}
+}
+
+func TestValidateExplicitScopes_DeduplicatesInvalidScopes(t *testing.T) {
+	err := validateExplicitScopes("bad:scope bad:scope")
+	if err == nil {
+		t.Fatal("expected validation error for unknown scope")
+	}
+	if !strings.Contains(err.Error(), "invalid scope(s): bad:scope") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(err.Error(), "bad:scope, bad:scope") {
+		t.Fatal("invalid scopes should be deduplicated")
+	}
+}
+
+func TestAuthLoginRun_ExplicitInvalidScopeFailsBeforeNetwork(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "cli_test", AppSecret: "secret", Brand: core.BrandFeishu,
+	})
+	err := authLoginRun(&LoginOptions{
+		Factory: f,
+		Ctx:     context.Background(),
+		Scope:   "base:app:create malformed:scope",
+	})
+	if err == nil {
+		t.Fatal("expected validation error for invalid scope")
+	}
+	if !strings.Contains(err.Error(), "invalid scope(s): malformed:scope") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAuthLoginRun_ScopeWithDomainFailsWithMutexError(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "cli_test", AppSecret: "secret", Brand: core.BrandFeishu,
+	})
+	err := authLoginRun(&LoginOptions{
+		Factory:   f,
+		Ctx:       context.Background(),
+		Scope:     "base:app:create",
+		Domains:   []string{"base"},
+		Recommend: false,
+	})
+	if err == nil {
+		t.Fatal("expected mutex validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot use --scope together with --domain/--recommend") {
+		t.Fatalf("expected mutex error, got: %v", err)
+	}
+}
+
 func TestGetDomainMetadata_IncludesFromMeta(t *testing.T) {
 	domains := getDomainMetadata("zh")
 	nameSet := make(map[string]bool)
@@ -296,11 +359,11 @@ func TestAuthLoginRun_NonTerminal_NoFlags_RejectsWithHint(t *testing.T) {
 }
 
 func TestEnsureRequestedScopesGranted(t *testing.T) {
-	issue := ensureRequestedScopesGranted("im:message:send im:message:reply", "im:message:reply", getLoginMsg("en"), nil)
+	issue := ensureRequestedScopesGranted("im:message:recall im:message:readonly", "im:message:readonly", getLoginMsg("en"), nil)
 	if issue == nil {
 		t.Fatal("expected missing scope issue")
 	}
-	if !strings.Contains(issue.Message, "im:message:send") {
+	if !strings.Contains(issue.Message, "im:message:recall") {
 		t.Fatalf("message %q missing requested scope", issue.Message)
 	}
 	for _, want := range []string{"Do not retry continuously", "scope being disabled", "lark-cli auth status"} {
@@ -308,26 +371,26 @@ func TestEnsureRequestedScopesGranted(t *testing.T) {
 			t.Fatalf("hint %q missing %q", issue.Hint, want)
 		}
 	}
-	if got := strings.Join(issue.Summary.Missing, " "); got != "im:message:send" {
+	if got := strings.Join(issue.Summary.Missing, " "); got != "im:message:recall" {
 		t.Fatalf("Missing = %q", got)
 	}
 }
 
 func TestBuildLoginScopeSummary(t *testing.T) {
-	summary := buildLoginScopeSummary("im:message:send im:message:reply im:message:send", "im:message:reply", "im:message:send im:message:reply im:chat:read")
-	if got := strings.Join(summary.Requested, " "); got != "im:message:send im:message:reply" {
+	summary := buildLoginScopeSummary("im:message:recall im:message:readonly im:message:recall", "im:message:readonly", "im:message:recall im:message:readonly im:chat:read")
+	if got := strings.Join(summary.Requested, " "); got != "im:message:recall im:message:readonly" {
 		t.Fatalf("Requested = %q", got)
 	}
-	if got := strings.Join(summary.NewlyGranted, " "); got != "im:message:send" {
+	if got := strings.Join(summary.NewlyGranted, " "); got != "im:message:recall" {
 		t.Fatalf("NewlyGranted = %q", got)
 	}
-	if got := strings.Join(summary.AlreadyGranted, " "); got != "im:message:reply" {
+	if got := strings.Join(summary.AlreadyGranted, " "); got != "im:message:readonly" {
 		t.Fatalf("AlreadyGranted = %q", got)
 	}
 	if len(summary.Missing) != 0 {
 		t.Fatalf("Missing = %v, want empty", summary.Missing)
 	}
-	if got := strings.Join(summary.Granted, " "); got != "im:message:send im:message:reply im:chat:read" {
+	if got := strings.Join(summary.Granted, " "); got != "im:message:recall im:message:readonly im:chat:read" {
 		t.Fatalf("Granted = %q", got)
 	}
 }
@@ -336,10 +399,10 @@ func TestWriteLoginSuccess_JSONIncludesScopeDiff(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
 
 	writeLoginSuccess(&LoginOptions{JSON: true}, getLoginMsg("en"), f, "ou_user", "tester", &loginScopeSummary{
-		Requested:      []string{"im:message:send", "im:message:reply"},
-		NewlyGranted:   []string{"im:message:send"},
-		AlreadyGranted: []string{"im:message:reply"},
-		Granted:        []string{"im:message:send", "im:message:reply"},
+		Requested:      []string{"im:message:recall", "im:message:readonly"},
+		NewlyGranted:   []string{"im:message:recall"},
+		AlreadyGranted: []string{"im:message:readonly"},
+		Granted:        []string{"im:message:recall", "im:message:readonly"},
 	})
 
 	var data map[string]interface{}
@@ -349,7 +412,7 @@ func TestWriteLoginSuccess_JSONIncludesScopeDiff(t *testing.T) {
 	if data["event"] != "authorization_complete" {
 		t.Fatalf("event = %v", data["event"])
 	}
-	if data["scope"] != "im:message:send im:message:reply" {
+	if data["scope"] != "im:message:recall im:message:readonly" {
 		t.Fatalf("scope = %v", data["scope"])
 	}
 	if len(data["newly_granted"].([]interface{})) != 1 {
@@ -363,11 +426,11 @@ func TestWriteLoginSuccess_JSONIncludesScopeDiff(t *testing.T) {
 func TestHandleLoginScopeIssue_NonJSONAlignsWithLoginSuccess(t *testing.T) {
 	f, _, stderr, _ := cmdutil.TestFactory(t, nil)
 	err := handleLoginScopeIssue(&LoginOptions{}, getLoginMsg("zh"), f, &loginScopeIssue{
-		Message: "授权结果异常: 以下请求 scopes 未被授予: im:message:send",
+		Message: "授权结果异常: 以下请求 scopes 未被授予: im:message:recall",
 		Hint:    "以上结果是本次授权请求用户最终确认后的结果，请勿持续重试；Scopes 未授予的原因是多样的，如 scope 被禁用；具体原因已通过授权页提示用户。可执行 `lark-cli auth status` 查看账号当前已授予的全部 scopes；",
 		Summary: &loginScopeSummary{
-			Requested: []string{"im:message:send"},
-			Missing:   []string{"im:message:send"},
+			Requested: []string{"im:message:recall"},
+			Missing:   []string{"im:message:recall"},
 			Granted:   []string{"base:app:copy"},
 		},
 	}, "ou_user", "tester")
@@ -376,9 +439,9 @@ func TestHandleLoginScopeIssue_NonJSONAlignsWithLoginSuccess(t *testing.T) {
 	}
 	got := stderr.String()
 	for _, want := range []string{
-		"授权结果异常: 以下请求 scopes 未被授予: im:message:send",
+		"授权结果异常: 以下请求 scopes 未被授予: im:message:recall",
 		"当前授权账号: tester (ou_user)",
-		"本次请求 scopes: im:message:send",
+		"本次请求 scopes: im:message:recall",
 		"本次新授予 scopes: （空）",
 		"以上结果是本次授权请求用户最终确认后的结果，请勿持续重试",
 		"scope 被禁用",
@@ -402,11 +465,11 @@ func TestHandleLoginScopeIssue_NonJSONAlignsWithLoginSuccess(t *testing.T) {
 func TestHandleLoginScopeIssue_JSONAlignsWithLoginSuccess(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
 	err := handleLoginScopeIssue(&LoginOptions{JSON: true}, getLoginMsg("en"), f, &loginScopeIssue{
-		Message: "authorization result is abnormal: these requested scopes were not granted: im:message:send",
+		Message: "authorization result is abnormal: these requested scopes were not granted: im:message:recall",
 		Hint:    "Granted scopes: base:app:copy. Check app scopes.",
 		Summary: &loginScopeSummary{
-			Requested: []string{"im:message:send"},
-			Missing:   []string{"im:message:send"},
+			Requested: []string{"im:message:recall"},
+			Missing:   []string{"im:message:recall"},
 			Granted:   []string{"base:app:copy"},
 		},
 	}, "ou_user", "tester")
@@ -465,15 +528,15 @@ func TestWriteLoginSuccess_TextOutputScenarios(t *testing.T) {
 		{
 			name: "mixed newly granted and already granted",
 			summary: &loginScopeSummary{
-				Requested:      []string{"im:message:send", "im:message:reply"},
-				NewlyGranted:   []string{"im:message:send"},
-				AlreadyGranted: []string{"im:message:reply"},
-				Granted:        []string{"im:message:send", "im:message:reply"},
+				Requested:      []string{"im:message:recall", "im:message:readonly"},
+				NewlyGranted:   []string{"im:message:recall"},
+				AlreadyGranted: []string{"im:message:readonly"},
+				Granted:        []string{"im:message:recall", "im:message:readonly"},
 			},
 			expectedPresent: []string{
 				"授权成功! 用户: tester (ou_user)",
-				"本次请求 scopes: im:message:send im:message:reply",
-				"本次新授予 scopes: im:message:send",
+				"本次请求 scopes: im:message:recall im:message:readonly",
+				"本次新授予 scopes: im:message:recall",
 				"可执行 `lark-cli auth status` 查看账号当前已授予的全部 scopes；",
 			},
 			expectedAbsent: []string{
@@ -485,12 +548,12 @@ func TestWriteLoginSuccess_TextOutputScenarios(t *testing.T) {
 		{
 			name: "all already granted",
 			summary: &loginScopeSummary{
-				Requested:      []string{"im:message:send"},
-				AlreadyGranted: []string{"im:message:send"},
-				Granted:        []string{"im:message:send", "contact:user.base:readonly"},
+				Requested:      []string{"im:message:recall"},
+				AlreadyGranted: []string{"im:message:recall"},
+				Granted:        []string{"im:message:recall", "contact:user.base:readonly"},
 			},
 			expectedPresent: []string{
-				"本次请求 scopes: im:message:send",
+				"本次请求 scopes: im:message:recall",
 				"本次新授予 scopes: （空）",
 				"可执行 `lark-cli auth status` 查看账号当前已授予的全部 scopes；",
 			},
@@ -503,12 +566,12 @@ func TestWriteLoginSuccess_TextOutputScenarios(t *testing.T) {
 		{
 			name: "missing scopes are shown",
 			summary: &loginScopeSummary{
-				Requested: []string{"im:message:send", "im:message:reply"},
-				Missing:   []string{"im:message:send"},
-				Granted:   []string{"im:message:reply"},
+				Requested: []string{"im:message:recall", "im:message:readonly"},
+				Missing:   []string{"im:message:recall"},
+				Granted:   []string{"im:message:readonly"},
 			},
 			expectedPresent: []string{
-				"本次请求 scopes: im:message:send im:message:reply",
+				"本次请求 scopes: im:message:recall im:message:readonly",
 				"本次新授予 scopes: （空）",
 			},
 			expectedAbsent: []string{
@@ -541,14 +604,14 @@ func TestWriteLoginSuccess_TextOutputScenarios(t *testing.T) {
 }
 
 func TestBuildLoginScopeSummary_WithMissingScopes(t *testing.T) {
-	summary := buildLoginScopeSummary("im:message:send im:message:reply", "im:message:reply", "im:message:reply")
+	summary := buildLoginScopeSummary("im:message:recall im:message:readonly", "im:message:readonly", "im:message:readonly")
 	if got := strings.Join(summary.NewlyGranted, " "); got != "" {
 		t.Fatalf("NewlyGranted = %q, want empty", got)
 	}
-	if got := strings.Join(summary.AlreadyGranted, " "); got != "im:message:reply" {
+	if got := strings.Join(summary.AlreadyGranted, " "); got != "im:message:readonly" {
 		t.Fatalf("AlreadyGranted = %q", got)
 	}
-	if got := strings.Join(summary.Missing, " "); got != "im:message:send" {
+	if got := strings.Join(summary.Missing, " "); got != "im:message:recall" {
 		t.Fatalf("Missing = %q", got)
 	}
 }
@@ -614,16 +677,16 @@ func TestAuthLoginRun_MissingRequestedScopeAlignsWithLoginSuccess(t *testing.T) 
 	err := authLoginRun(&LoginOptions{
 		Factory: f,
 		Ctx:     context.Background(),
-		Scope:   "im:message:send",
+		Scope:   "im:message:recall",
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	got := stderr.String()
 	for _, want := range []string{
-		"授权结果异常: 以下请求 scopes 未被授予: im:message:send",
+		"授权结果异常: 以下请求 scopes 未被授予: im:message:recall",
 		"当前授权账号: tester (ou_user)",
-		"本次请求 scopes: im:message:send",
+		"本次请求 scopes: im:message:recall",
 		"以上结果是本次授权请求用户最终确认后的结果，请勿持续重试",
 		"scope 被禁用",
 		"lark-cli auth status",
@@ -708,7 +771,7 @@ func TestAuthLoginRun_DeviceCodeUsesCachedRequestedScopes(t *testing.T) {
 			"refresh_token":            "refresh-token",
 			"expires_in":               7200,
 			"refresh_token_expires_in": 604800,
-			"scope":                    "im:message:send offline_access",
+			"scope":                    "im:message:recall offline_access",
 		},
 	})
 	reg.Register(&httpmock.Stub{
@@ -727,13 +790,13 @@ func TestAuthLoginRun_DeviceCodeUsesCachedRequestedScopes(t *testing.T) {
 	err := authLoginRun(&LoginOptions{
 		Factory: f,
 		Ctx:     context.Background(),
-		Scope:   "im:message:send",
+		Scope:   "im:message:recall",
 		NoWait:  true,
 	})
 	if err != nil {
 		t.Fatalf("no-wait authLoginRun() error = %v", err)
 	}
-	if got, err := loadLoginRequestedScope("device-code"); err != nil || got != "im:message:send" {
+	if got, err := loadLoginRequestedScope("device-code"); err != nil || got != "im:message:recall" {
 		t.Fatalf("loadLoginRequestedScope() = (%q, %v), want requested scope", got, err)
 	}
 
@@ -751,8 +814,8 @@ func TestAuthLoginRun_DeviceCodeUsesCachedRequestedScopes(t *testing.T) {
 	got := stderr.String()
 	for _, want := range []string{
 		"OK: 授权成功! 用户: tester (ou_user)",
-		"本次请求 scopes: im:message:send",
-		"本次新授予 scopes: im:message:send",
+		"本次请求 scopes: im:message:recall",
+		"本次新授予 scopes: im:message:recall",
 		"可执行 `lark-cli auth status` 查看账号当前已授予的全部 scopes；",
 	} {
 		if !strings.Contains(got, want) {
@@ -771,16 +834,16 @@ func TestWriteLoginSuccess_TextOutputEnglishIncludesStatusHintWhenNoMissingScope
 	f, _, stderr, _ := cmdutil.TestFactory(t, nil)
 
 	writeLoginSuccess(&LoginOptions{}, getLoginMsg("en"), f, "ou_user", "tester", &loginScopeSummary{
-		Requested:    []string{"im:message:send"},
-		NewlyGranted: []string{"im:message:send"},
-		Granted:      []string{"im:message:send"},
+		Requested:    []string{"im:message:recall"},
+		NewlyGranted: []string{"im:message:recall"},
+		Granted:      []string{"im:message:recall"},
 	})
 
 	got := stderr.String()
 	for _, want := range []string{
 		"Authorization successful! User: tester (ou_user)",
-		"Requested scopes: im:message:send",
-		"Newly granted scopes: im:message:send",
+		"Requested scopes: im:message:recall",
+		"Newly granted scopes: im:message:recall",
 		"Run `lark-cli auth status` to inspect all scopes currently granted to the account.",
 	} {
 		if !strings.Contains(got, want) {
@@ -796,7 +859,7 @@ func TestAuthLoginRun_DeviceCodeTokenNilCleansScopeCache(t *testing.T) {
 	keyring.MockInit()
 	setupLoginConfigDir(t)
 
-	if err := saveLoginRequestedScope("device-code", "im:message:send"); err != nil {
+	if err := saveLoginRequestedScope("device-code", "im:message:recall"); err != nil {
 		t.Fatalf("saveLoginRequestedScope() error = %v", err)
 	}
 
@@ -854,7 +917,7 @@ func TestAuthLoginRun_JSONWriteFailure_NoWaitReturnsWriterError(t *testing.T) {
 	err := authLoginRun(&LoginOptions{
 		Factory: f,
 		Ctx:     context.Background(),
-		Scope:   "im:message:send",
+		Scope:   "im:message:recall",
 		NoWait:  true,
 		JSON:    true,
 	})
@@ -893,7 +956,7 @@ func TestAuthLoginRun_JSONWriteFailure_DeviceAuthorizationReturnsWriterError(t *
 	err := authLoginRun(&LoginOptions{
 		Factory: f,
 		Ctx:     ctx,
-		Scope:   "im:message:send",
+		Scope:   "im:message:recall",
 		JSON:    true,
 	})
 	if err == nil {

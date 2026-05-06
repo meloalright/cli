@@ -188,12 +188,20 @@ func authLoginRun(opts *LoginOptions) error {
 
 	finalScope := opts.Scope
 
+	// Mutual exclusion: --scope cannot be combined with --domain/--recommend
+	if opts.Scope != "" && (len(selectedDomains) > 0 || opts.Recommend) {
+		return output.ErrValidation("cannot use --scope together with --domain/--recommend")
+	}
+
+	// Validate explicitly provided scopes
+	if opts.Scope != "" {
+		if err := validateExplicitScopes(opts.Scope); err != nil {
+			return err
+		}
+	}
+
 	// Resolve scopes from domain/permission filters
 	if len(selectedDomains) > 0 || opts.Recommend {
-		if opts.Scope != "" {
-			return output.ErrValidation("cannot use --scope together with --domain/--recommend")
-		}
-
 		var candidateScopes []string
 		if len(selectedDomains) > 0 {
 			candidateScopes = collectScopesForDomains(selectedDomains, "user")
@@ -519,6 +527,61 @@ func shortcutSupportsIdentity(sc common.Shortcut, identity string) bool {
 		}
 	}
 	return false
+}
+
+func validateExplicitScopes(scope string) error {
+	normalized := strings.Fields(scope)
+	if len(normalized) == 0 {
+		return output.ErrValidation("please specify at least one scope")
+	}
+
+	knownScopes := knownScopesForIdentity()
+	invalid := make([]string, 0)
+	result := make([]string, 0, len(normalized))
+	seen := make(map[string]bool, len(normalized))
+
+	for _, s := range normalized {
+		if !knownScopes[s] {
+			if !seen[s] {
+				seen[s] = true
+				invalid = append(invalid, s)
+			}
+			continue
+		}
+		if seen[s] {
+			continue
+		}
+		seen[s] = true
+		result = append(result, s)
+	}
+
+	if len(invalid) > 0 {
+		return output.ErrValidation(
+			"invalid scope(s): %s\ncheck the exact scope names with `lark-cli auth scopes --format pretty`, or use `lark-cli auth login --domain <domain> --recommend` to avoid manual scope typos",
+			strings.Join(invalid, ", "),
+		)
+	}
+
+	return nil
+}
+
+func knownScopesForIdentity() map[string]bool {
+	known := make(map[string]bool)
+	for scope := range registry.LoadScopePriorities() {
+		known[scope] = true
+	}
+	for _, scope := range registry.CollectAllScopesFromMeta("user") {
+		known[scope] = true
+	}
+	for _, sc := range shortcuts.AllShortcuts() {
+		if shortcutSupportsIdentity(sc, "user") {
+			for _, scope := range sc.ScopesForIdentity("user") {
+				known[scope] = true
+			}
+		}
+	}
+	known["offline_access"] = true
+	return known
 }
 
 // suggestDomain finds the best "did you mean" match for an unknown domain.
