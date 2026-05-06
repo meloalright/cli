@@ -17,6 +17,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/zalando/go-keyring"
@@ -235,8 +236,13 @@ func TestValidateExplicitScopes_RejectsUnknownScopes(t *testing.T) {
 	if !strings.Contains(err.Error(), "invalid scope(s): malformed:scope") {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "auth scopes --format pretty") {
-		t.Fatalf("expected auth scopes hint, got: %v", err)
+	var exitErr *output.ExitError
+	if errors.As(err, &exitErr) && exitErr.Detail != nil {
+		if !strings.Contains(exitErr.Detail.Hint, "auth scopes --format pretty") {
+			t.Fatalf("expected auth scopes hint, got hint: %q", exitErr.Detail.Hint)
+		}
+	} else {
+		t.Fatal("expected *output.ExitError with Detail for hint check")
 	}
 }
 

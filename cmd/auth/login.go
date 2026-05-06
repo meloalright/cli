@@ -556,9 +556,10 @@ func validateExplicitScopes(scope string) error {
 	}
 
 	if len(invalid) > 0 {
-		return output.ErrValidation(
-			"invalid scope(s): %s\ncheck the exact scope names with `lark-cli auth scopes --format pretty`, or use `lark-cli auth login --domain <domain> --recommend` to avoid manual scope typos",
-			strings.Join(invalid, ", "),
+		return output.ErrWithHint(
+			output.ExitValidation, "validation",
+			fmt.Sprintf("invalid scope(s): %s", strings.Join(invalid, ", ")),
+			"check the exact scope names with `lark-cli auth scopes --format pretty`, or use `lark-cli auth login --domain <domain> --recommend` to avoid manual scope typos",
 		)
 	}
 
