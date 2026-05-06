@@ -1,0 +1,287 @@
+{
+  "name": "eval-search-delivery-harness",
+  "version": 1,
+  "objective": "make the eval-search workflow executable, reviewable, and reusable while preserving blind search evaluation",
+  "target": {
+    "skill": "eval-search",
+    "outcome": "dataset snapshot -> blind executor evidence -> judge scoring -> optimizer-ready report"
+  },
+  "inputs": [
+    {
+      "id": "loader_profile",
+      "required": true,
+      "description": "lark-cli profile that can read the eval Base during dataset setup"
+    },
+    {
+      "id": "executor_profile",
+      "required": true,
+      "description": "dedicated blind lark-cli profile that cannot read the eval Base"
+    },
+    {
+      "id": "subset_or_dataset_file",
+      "required": false,
+      "description": "subset for smoke runs or dataset-file for two-step strict mode"
+    },
+    {
+      "id": "eval_run_id",
+      "required": false,
+      "description": "stable run id under tests/eval-search/runs when reproducibility matters"
+    }
+  ],
+  "lifecycle": {
+    "id": "eval-search",
+    "goal": "bring lkkcli-style lifecycle control to the existing search evaluation harness",
+    "stage_order": [
+      "prepare",
+      "understand",
+      "plan",
+      "act",
+      "verify",
+      "retrospect"
+    ]
+  },
+  "constraints": {
+    "enforce_stage_order": true,
+    "state_root": "tests/eval-search/runs",
+    "role_isolation": [
+      "loader profile may read the eval Base only during dataset setup",
+      "executor profile receives query/case_id/run_dir only and must not read expected answers",
+      "judge starts after executor trajectories are complete",
+      "optimizer receives aggregated verdicts instead of full raw trajectories"
+    ],
+    "allowed_write_paths": [
+      "skills/eval-search/**",
+      "tests/eval-search/**",
+      "shortcuts/**",
+      ".harness/**"
+    ]
+  },
+  "env": {
+    "EVAL_SEARCH_RUN_ROOT": "tests/eval-search/runs"
+  },
+  "artifacts": [
+    {
+      "id": "eval_skill",
+      "path": "skills/eval-search/SKILL.md",
+      "required": true
+    },
+    {
+      "id": "rubric",
+      "path": "skills/eval-search/RUBRIC.md",
+      "required": true
+    },
+    {
+      "id": "executor_prompt",
+      "path": "skills/eval-search/prompts/executor.md",
+      "required": true
+    },
+    {
+      "id": "judge_prompt",
+      "path": "skills/eval-search/prompts/judge.md",
+      "required": true
+    },
+    {
+      "id": "optimizer_prompt",
+      "path": "skills/eval-search/prompts/optimizer.md",
+      "required": true
+    },
+    {
+      "id": "harness_runner_source",
+      "path": "scripts/harness-runner.ts",
+      "required": true
+    },
+    {
+      "id": "setup_runner_source",
+      "path": "tests/eval-search/eval-search-run.ts",
+      "required": true
+    },
+    {
+      "id": "evidence_collector_source",
+      "path": "tests/eval-search/eval-search-collect-search.ts",
+      "required": true
+    }
+  ],
+  "stages": [
+    {
+      "id": "prepare",
+      "objective": "establish repo state and local tool availability before touching eval data",
+      "steps": [
+        {
+          "id": "git_status",
+          "command": [
+            "git",
+            "status",
+            "--short",
+            "--branch"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        },
+        {
+          "id": "lark_cli_available",
+          "required": false,
+          "command": [
+            "lark-cli",
+            "--version"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "understand",
+      "objective": "pin the eval-search contract before executing any case",
+      "steps": [
+        {
+          "id": "skill_contract_mentions_roles",
+          "command": [
+            "node",
+            "-e",
+            "const s=require('fs').readFileSync('skills/eval-search/SKILL.md','utf8'); for (const w of ['Executor','Judge','Optimizer','盲测']) if (!s.includes(w)) process.exit(1);"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        },
+        {
+          "id": "rubric_exists",
+          "command": [
+            "test",
+            "-f",
+            "skills/eval-search/RUBRIC.md"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "plan",
+      "objective": "prove the deterministic setup, blind collector, and scoring prompts are all wired",
+      "steps": [
+        {
+          "id": "setup_help",
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "tests/eval-search/eval-search-run.ts",
+            "--help"
+          ],
+          "expect": {
+            "exitCode": 0,
+            "stdoutIncludes": "--executor-profile"
+          }
+        },
+        {
+          "id": "collector_help",
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "tests/eval-search/eval-search-collect-search.ts",
+            "--help"
+          ],
+          "expect": {
+            "exitCode": 0,
+            "stdoutIncludes": "--fetch-top"
+          }
+        }
+      ]
+    },
+    {
+      "id": "act",
+      "objective": "check the implementation pieces that produce setup and evidence artifacts",
+      "steps": [
+        {
+          "id": "setup_runner_smoke",
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "tests/eval-search/eval-search-run.ts",
+            "--help"
+          ],
+          "expect": {
+            "exitCode": 0,
+            "stdoutIncludes": "--executor-profile"
+          }
+        },
+        {
+          "id": "collector_smoke",
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "tests/eval-search/eval-search-collect-search.ts",
+            "--help"
+          ],
+          "expect": {
+            "exitCode": 0,
+            "stdoutIncludes": "--fetch-top"
+          }
+        }
+      ]
+    },
+    {
+      "id": "verify",
+      "objective": "type-check TS and run local deterministic gates before any live eval-search run",
+      "steps": [
+        {
+          "id": "typescript_check",
+          "command": [
+            "npm",
+            "run",
+            "harness:check"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        },
+        {
+          "id": "harness_runner_smoke",
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "scripts/harness-runner.ts",
+            "--help"
+          ],
+          "expect": {
+            "exitCode": 0,
+            "stdoutIncludes": "--plan"
+          }
+        },
+        {
+          "id": "skill_format",
+          "command": [
+            "node",
+            "scripts/skill-format-check/index.js",
+            "skills"
+          ],
+          "expect": {
+            "exitCode": 0,
+            "stdoutIncludes": "Skill format check passed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retrospect",
+      "objective": "capture the final repo state and contract summary for the next run",
+      "steps": [
+        {
+          "id": "branch_state",
+          "command": [
+            "git",
+            "status",
+            "--short",
+            "--branch"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "name": "self-correct-dev-harness",
+  "version": 1,
+  "stages": [
+    {
+      "id": "explore",
+      "objective": "prove the runner can execute a basic stage",
+      "steps": [
+        {
+          "id": "node_available",
+          "command": [
+            "node",
+            "--version"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "verify",
+      "objective": "prove correction steps are executed and retried",
+      "steps": [
+        {
+          "id": "marker_exists_after_correction",
+          "command": "test -f \"$HARNESS_RUN_DIR/self-correct-marker\"",
+          "expect": {
+            "exitCode": 0
+          },
+          "corrections": [
+            {
+              "id": "create_marker",
+              "command": "touch \"$HARNESS_RUN_DIR/self-correct-marker\"",
+              "expect": {
+                "exitCode": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "retrospect",
+      "objective": "read the generated marker",
+      "steps": [
+        {
+          "id": "marker_readback",
+          "command": "test -f \"$HARNESS_RUN_DIR/self-correct-marker\"",
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "name": "sample-dev-harness",
+  "version": 1,
+  "stages": [
+    {
+      "id": "explore",
+      "objective": "inspect repository state",
+      "steps": [
+        {
+          "id": "git_status",
+          "command": [
+            "git",
+            "status",
+            "--short",
+            "--branch"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "plan",
+      "objective": "confirm stable project instructions exist",
+      "steps": [
+        {
+          "id": "agents_file_exists",
+          "command": [
+            "test",
+            "-f",
+            "AGENTS.md"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "act",
+      "objective": "surface current implementation delta",
+      "steps": [
+        {
+          "id": "diff_stat",
+          "command": [
+            "git",
+            "diff",
+            "--stat"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "verify",
+      "objective": "verify runner syntax",
+      "steps": [
+        {
+          "id": "node_smoke_runner",
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "scripts/harness-runner.ts",
+            "--help"
+          ],
+          "expect": {
+            "exitCode": 0,
+            "stdoutIncludes": "--plan"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retrospect",
+      "objective": "return final branch state",
+      "steps": [
+        {
+          "id": "branch_state",
+          "command": [
+            "git",
+            "status",
+            "--short",
+            "--branch"
+          ],
+          "expect": {
+            "exitCode": 0
+          }
+        }
+      ]
+    }
+  ]
+}
