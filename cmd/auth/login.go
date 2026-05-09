@@ -232,7 +232,7 @@ func authLoginRun(opts *LoginOptions) error {
 			"verification_url": authResp.VerificationUriComplete,
 			"device_code":      authResp.DeviceCode,
 			"expires_in":       authResp.ExpiresIn,
-			"hint":             fmt.Sprintf("Show verification_url to user, then immediately execute: lark-cli auth login --device-code %s (blocks until authorized or timeout). Do not instruct the user to run this command themselves.", authResp.DeviceCode),
+			"hint":             fmt.Sprintf("Show verification_url to the user exactly as returned by the CLI and treat it as an opaque string. Do not URL-encode or decode it, do not normalize or rewrite it, do not add %%20, spaces, or punctuation, and do not wrap it as Markdown link text; prefer a fenced code block containing only the raw URL. Then immediately execute: lark-cli auth login --device-code %s (blocks until authorized or timeout). Do not instruct the user to run this command themselves.", authResp.DeviceCode),
 		}
 		encoder := json.NewEncoder(f.IOStreams.Out)
 		encoder.SetEscapeHTML(false)

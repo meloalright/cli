@@ -879,6 +879,57 @@ func TestAuthLoginRun_JSONWriteFailure_NoWaitReturnsWriterError(t *testing.T) {
 	}
 }
 
+func TestAuthLoginRun_NoWaitJSONHintIncludesRawURLGuidance(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		ProfileName: "default",
+		AppID:       "cli_test",
+		AppSecret:   "secret",
+		Brand:       core.BrandFeishu,
+	})
+
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    larkauth.PathDeviceAuthorization,
+		Body: map[string]interface{}{
+			"device_code":               "device-code",
+			"user_code":                 "user-code",
+			"verification_uri":          "https://example.com/verify",
+			"verification_uri_complete": "https://example.com/verify?code=123",
+			"expires_in":                240,
+			"interval":                  5,
+		},
+	})
+
+	err := authLoginRun(&LoginOptions{
+		Factory: f,
+		Ctx:     context.Background(),
+		Scope:   "im:message:send",
+		NoWait:  true,
+	})
+	if err != nil {
+		t.Fatalf("authLoginRun() error = %v", err)
+	}
+
+	dec := json.NewDecoder(strings.NewReader(stdout.String()))
+	var data map[string]interface{}
+	if err := dec.Decode(&data); err != nil {
+		t.Fatalf("Decode(stdout first event) error = %v, stdout=%q", err, stdout.String())
+	}
+	hint, _ := data["hint"].(string)
+	for _, want := range []string{
+		"exactly as returned by the CLI",
+		"opaque string",
+		"Do not URL-encode or decode it",
+		"do not add %20, spaces, or punctuation",
+		"do not wrap it as Markdown link text",
+		"fenced code block containing only the raw URL",
+	} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("hint missing %q, got:\n%s", want, hint)
+		}
+	}
+}
+
 func TestAuthLoginRun_JSONWriteFailure_DeviceAuthorizationReturnsWriterError(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
 		ProfileName: "default",
@@ -914,6 +965,60 @@ func TestAuthLoginRun_JSONWriteFailure_DeviceAuthorizationReturnsWriterError(t *
 	}
 	if !strings.Contains(err.Error(), "failed to write JSON output") {
 		t.Fatalf("error = %v, want JSON write failure", err)
+	}
+}
+
+func TestAuthLoginRun_JSONDeviceAuthorizationAgentHintIncludesRawURLGuidance(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		ProfileName: "default",
+		AppID:       "cli_test",
+		AppSecret:   "secret",
+		Brand:       core.BrandFeishu,
+	})
+
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    larkauth.PathDeviceAuthorization,
+		Body: map[string]interface{}{
+			"device_code":               "device-code",
+			"user_code":                 "user-code",
+			"verification_uri":          "https://example.com/verify",
+			"verification_uri_complete": "https://example.com/verify?code=123",
+			"expires_in":                240,
+			"interval":                  5,
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := authLoginRun(&LoginOptions{
+		Factory: f,
+		Ctx:     ctx,
+		Scope:   "im:message:send",
+		JSON:    true,
+	})
+	if err == nil {
+		t.Fatal("expected error from cancelled context")
+	}
+
+	dec := json.NewDecoder(strings.NewReader(stdout.String()))
+	var data map[string]interface{}
+	if err := dec.Decode(&data); err != nil {
+		t.Fatalf("Decode(stdout first event) error = %v, stdout=%q", err, stdout.String())
+	}
+	hint, _ := data["agent_hint"].(string)
+	for _, want := range []string{
+		"timeout >= 600s",
+		"逐字原样转发 CLI 返回的 URL",
+		"opaque string",
+		"不要做 URL 编码或解码",
+		"不要补 `%20`、空格或标点",
+		"不要改写成 Markdown 链接",
+		"只包含该 URL 的代码块单独输出",
+	} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("agent_hint missing %q, got:\n%s", want, hint)
+		}
 	}
 }
 
