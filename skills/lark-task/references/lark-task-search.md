@@ -29,11 +29,13 @@ lark-cli task +search --assignee "ou_xxx,ou_yyy" --completed=false
 lark-cli task +search --query "release" --due "-1d,+7d"
 
 # List tasks assigned to me without a keyword
-lark-cli task +get-my-tasks --complete=false --due-start 2026-05-01 --due-end 2026-06-01
+lark-cli task +get-my-tasks --complete=false --due-start <this-month-start YYYY-MM-DD> --due-end <next-month-start YYYY-MM-DD>
 
 # List tasks I follow without a keyword
 lark-cli task +get-related-tasks --followed-by-me --include-complete=true
 ```
+
+For calendar periods such as "this month" or "last week", compute the date boundaries at runtime before running the command. The placeholders above describe the boundary shape; they are not fixed example dates.
 
 ## Parameters
 

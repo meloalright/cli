@@ -47,10 +47,10 @@ lark-cli vc +search --organizer-ids "ou_a,ou_b"
 lark-cli vc +search --participant-ids "ou_x,ou_y"
 
 # 查询我这个月参加过的历史会议，不带关键词
-lark-cli vc +search --start 2026-05-01 --end 2026-05-31 --participant-ids "ou_me"
+lark-cli vc +search --start <本月第一天 YYYY-MM-DD> --end <本月最后一天 YYYY-MM-DD> --participant-ids "ou_me"
 
 # 查询最近两周我组织的历史会议，不带关键词
-lark-cli vc +search --start 2026-04-28 --end 2026-05-12 --organizer-ids "ou_me"
+lark-cli vc +search --start <14天前 YYYY-MM-DD> --end <今天 YYYY-MM-DD> --organizer-ids "ou_me"
 
 # 按会议室过滤
 lark-cli vc +search --room-ids "123,456"
@@ -87,6 +87,8 @@ lark-cli vc +search --query "周会" --format json
 所有参数均可选，但必须至少提供一个过滤条件：`--query`、`--start`、`--end`、`--organizer-ids`、`--participant-ids` 或 `--room-ids`。
 
 没有真实关键词时，时间范围或人员过滤已经满足这个约束，`--query` 可以省略。
+
+涉及"本月"、"最近两周"这类相对时间时，先基于执行当天计算 `<...>` 占位符，再运行命令；不要沿用文档示例生成时的具体日期。
 
 ### 2. 仅搜索历史会议
 
