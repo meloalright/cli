@@ -27,7 +27,7 @@
 
 | 用户说 | 命令 |
 |---|---|
-| 我这月创建的所有文档，按类型分类统计 | `lark-cli drive +search --query "" --mine --created-since <本月第一天 YYYY-MM-DD> --created-until <下月第一天 YYYY-MM-DD>` |
+| 我这月创建的所有文档，按类型分类统计 | `lark-cli drive +search --query "" --mine --created-since "<YYYY-MM-DD>" --created-until "<YYYY-MM-DD>"` |
 | 最近半年我编辑过的文档，看看哪些最近更新过 | `lark-cli drive +search --query "" --edited-since 6m --sort edit_time` |
 | 最近一个月我编辑过的文档 | `lark-cli drive +search --query "" --edited-since 1m` |
 | 最近一个月我编辑过 且 我评论过的 | `lark-cli drive +search --query "" --edited-since 1m --commented-since 1m` |
@@ -186,7 +186,7 @@ stdout 的 JSON 输出不受影响。`open_time` / `create_time` 不做 snap。
 - **时间表达**：
   - 模糊相对时间（"最近半年"、"过去 30 天"、"最近一周"）→ `--*-since 6m` / `--*-since 30d` / `--*-since 7d`，不展开成 ISO 时间
   - **日历表达**（"上个月"、"上周"、"本月"、"前年"、"今年 3 月"等明确日历单位）→ **必须算出绝对 `YYYY-MM-DD` 边界**（如"上个月" = 上一个日历月的 1 号 → 当月 1 号），**不要近似成 `1m`/`2m`**：CLI 里 `m` 是固定 30 天、`y` 固定 365 天，跟日历差 0-3 天，月末月初尤其容易偏出去
-  - 文档中的 `<本月第一天 YYYY-MM-DD>`、`<下月第一天 YYYY-MM-DD>` 是运行时占位符：执行命令前按当前日期计算并替换，不要把示例生成时的月份硬编码进答案
+  - 文档中的 `"<YYYY-MM-DD>"` 是运行时占位符：执行命令前按当前日期计算并替换。例如"本月"应替换为本月第一天和下月第一天，不要把示例生成时的月份硬编码进答案
   - 绝对日期 → 直接 `YYYY-MM-DD` 或 RFC3339
 - **分页策略**：默认只返回第一页，并说明 `has_more` 和下一页命令。只有用户明确要"全部 / 全量 / 继续翻"才继续。单轮翻页上限 5 页。
 - **原始返回**：用户要求"原始数据"、"接口返回"时用 `--format json`，不做客户端精确过滤或摘要重写。

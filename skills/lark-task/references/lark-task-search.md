@@ -29,7 +29,7 @@ lark-cli task +search --assignee "ou_xxx,ou_yyy" --completed=false
 lark-cli task +search --query "release" --due "-1d,+7d"
 
 # List tasks assigned to me without a keyword
-lark-cli task +get-my-tasks --complete=false --due-start <this-month-start YYYY-MM-DD> --due-end <next-month-start YYYY-MM-DD>
+lark-cli task +get-my-tasks --complete=false --due-start "<YYYY-MM-DD>" --due-end "<YYYY-MM-DD>"
 
 # List tasks I follow without a keyword
 lark-cli task +get-related-tasks --followed-by-me --include-complete=true

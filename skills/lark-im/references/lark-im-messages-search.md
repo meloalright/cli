@@ -162,10 +162,10 @@ Use `--query` only for real message keywords. If the user asks for activity revi
 
 ```bash
 # Review recent bot interactions without forcing a keyword
-lark-cli im +messages-search --query "" --sender-type bot --start "<7 days ago 00:00:00 with local timezone>" --end "<today 23:59:59 with local timezone>" --page-all --format json
+lark-cli im +messages-search --query "" --sender-type bot --start "<YYYY-MM-DDT00:00:00+08:00>" --end "<YYYY-MM-DDT23:59:59+08:00>" --page-all --format json
 ```
 
-Replace the time placeholders at execution time. Do not copy date literals from this reference into answers for relative requests.
+Replace the time placeholders at execution time. For example, "最近一周" means computing the start date and end date from the current day before running the command; do not copy date literals from this reference into answers for relative requests.
 
 ### Resolving chat_id from a chat name
 
