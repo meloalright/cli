@@ -168,3 +168,35 @@ func TestNormalizeWhiteboardResult(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateSelectionByTitleV1(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		title   string
+		wantErr bool
+		errSub  string
+	}{
+		{name: "empty title is valid", title: "", wantErr: false},
+		{name: "single heading is valid", title: "## Section", wantErr: false},
+		{name: "h1 heading is valid", title: "# Top", wantErr: false},
+		{name: "deep heading is valid", title: "### Sub-section", wantErr: false},
+		{name: "missing hash prefix is invalid", title: "No hash", wantErr: true, errSub: "'#'"},
+		{name: "multiline title is invalid", title: "## First\n## Second", wantErr: true, errSub: "single"},
+		{name: "title with embedded carriage return is invalid", title: "## Title\r## Next", wantErr: true, errSub: "single"},
+		{name: "leading-space heading is valid after trim", title: "  ## Section", wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateSelectionByTitleV1(tt.title)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateSelectionByTitleV1(%q) error = %v, wantErr = %v", tt.title, err, tt.wantErr)
+			}
+			if tt.wantErr && tt.errSub != "" && !strings.Contains(err.Error(), tt.errSub) {
+				t.Errorf("expected error to contain %q, got: %v", tt.errSub, err)
+			}
+		})
+	}
+}

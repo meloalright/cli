@@ -224,9 +224,6 @@ func warnOverwriteResourceBlocks(runtime *common.RuntimeContext) string {
 		return ""
 	}
 	md, _ := result["markdown"].(string)
-	if md == "" {
-		return ""
-	}
 	return checkOverwriteResourceBlocks(md)
 }
 
