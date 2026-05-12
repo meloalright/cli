@@ -20,11 +20,15 @@
 > 正确：`lark-cli drive +search --query "方案"`
 > 错误：`lark-cli drive +search 方案`
 > `+search` 不接受位置参数；空 `--query` 或省略 `--query` 表示纯靠 filter 浏览（合法）。
+>
+> **列表型请求不要硬塞关键词**：如果用户只是要求"我这月创建的所有文档"、"最近半年我编辑过的文档"、"按类型分类统计"这类范围浏览 / 汇总请求，且没有给出标题片段或业务关键词，应使用 `--query ""` 搭配 `--mine`、`--created-*`、`--edited-*`、`--doc-types` 等过滤条件。不要把"查找"、"所有文档"、"最近更新过"、"按类型分类统计"这类动作词或统计意图放进 `--query`，否则会把本来应靠 filter 命中的结果过度收窄。
 
 ### 自然语言 → 命令映射速查
 
 | 用户说 | 命令 |
 |---|---|
+| 我这月创建的所有文档，按类型分类统计 | `lark-cli drive +search --query "" --mine --created-since 2026-05-01 --created-until 2026-06-01` |
+| 最近半年我编辑过的文档，看看哪些最近更新过 | `lark-cli drive +search --query "" --edited-since 6m --sort edit_time` |
 | 最近一个月我编辑过的文档 | `lark-cli drive +search --query "" --edited-since 1m` |
 | 最近一个月我编辑过 且 我评论过的 | `lark-cli drive +search --query "" --edited-since 1m --commented-since 1m` |
 | 最近一周我打开过的表格 | `lark-cli drive +search --query "" --opened-since 7d --doc-types sheet` |
@@ -178,6 +182,7 @@ stdout 的 JSON 输出不受影响。`open_time` / `create_time` 不做 snap。
   - 用户说"某个群里"，先用 `lark-im` 查 `chat_id`
   - 用户说"某人创建/分享的"（非自己），先用 `lark-contact` 查 open_id，再填 `--creator-ids` / `--sharer-ids`
 - **查询语义下推**：`--query` 支持的服务端高级语法（`intitle:`、`""`、`OR`、`-`）优先使用，不要先模糊搜再在客户端二次过滤。
+- **query 填写边界**：只有标题片段、业务名词、项目名、会议名、文件内容关键词才应进入 `--query`。仅描述动作、时间范围、所有权、统计方式的词不算关键词，保持 `--query ""` 并依赖 filters。
 - **时间表达**：
   - 模糊相对时间（"最近半年"、"过去 30 天"、"最近一周"）→ `--*-since 6m` / `--*-since 30d` / `--*-since 7d`，不展开成 ISO 时间
   - **日历表达**（"上个月"、"上周"、"本月"、"前年"、"今年 3 月"等明确日历单位）→ **必须算出绝对 `YYYY-MM-DD` 边界**（如"上个月" = 上一个日历月的 1 号 → 当月 1 号），**不要近似成 `1m`/`2m`**：CLI 里 `m` 是固定 30 天、`y` 固定 365 天，跟日历差 0-3 天，月末月初尤其容易偏出去

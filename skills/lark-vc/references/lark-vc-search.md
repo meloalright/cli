@@ -7,6 +7,10 @@
 
 本 skill 对应 shortcut：`lark-cli vc +search`（调用 `POST /open-apis/vc/v1/meetings/search`）。
 
+## 关键词使用边界
+
+`--query` 只用于真实会议关键词，例如会议主题、项目名、评审名、客户名。用户只是说"我这月参加的所有视频会议"、"最近两周我组织的所有视频会议"、"总结主要议题 / 看看参会情况"时，本质是历史会议列表和后续总结，不要把"回顾"、"所有视频会议"、"总结主要议题"等动作词放进 `--query`。这类请求应先用时间范围 + `--participant-ids` / `--organizer-ids` 搜全量候选，再按结果继续取纪要或录制信息。
+
 ## 典型触发表达
 
 以下说法通常应优先使用 `vc +search`：
@@ -42,6 +46,12 @@ lark-cli vc +search --organizer-ids "ou_a,ou_b"
 # 按参与者过滤（open_id，逗号分隔）
 lark-cli vc +search --participant-ids "ou_x,ou_y"
 
+# 查询我这个月参加过的历史会议，不带关键词
+lark-cli vc +search --start 2026-05-01 --end 2026-05-31 --participant-ids "ou_me"
+
+# 查询最近两周我组织的历史会议，不带关键词
+lark-cli vc +search --start 2026-04-28 --end 2026-05-12 --organizer-ids "ou_me"
+
 # 按会议室过滤
 lark-cli vc +search --room-ids "123,456"
 
@@ -75,6 +85,8 @@ lark-cli vc +search --query "周会" --format json
 ### 1. 至少提供一个过滤条件
 
 所有参数均可选，但必须至少提供一个过滤条件：`--query`、`--start`、`--end`、`--organizer-ids`、`--participant-ids` 或 `--room-ids`。
+
+没有真实关键词时，时间范围或人员过滤已经满足这个约束，`--query` 可以省略。
 
 ### 2. 仅搜索历史会议
 

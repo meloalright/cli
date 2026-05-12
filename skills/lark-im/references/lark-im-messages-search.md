@@ -156,6 +156,15 @@ Use `im +messages-resources-download` if you need to fetch the underlying image 
 
 ## AI Usage Guidance
 
+### Query boundary for activity review
+
+Use `--query` only for real message keywords. If the user asks for activity review such as "最近一周我和哪些 Bot 有过交互" or "整理我和某人的聊天记录", and the useful constraints are sender type, chat, person, or time range, keep `--query ""` and rely on those filters. Do not put generic instruction words such as "看看", "总结", "交互内容", or "聊天记录" into `--query`; those words often over-constrain message search and hide the relevant messages.
+
+```bash
+# Review recent bot interactions without forcing a keyword
+lark-cli im +messages-search --query "" --sender-type bot --start "2026-05-05T00:00:00+08:00" --end "2026-05-12T23:59:59+08:00" --page-all --format json
+```
+
 ### Resolving chat_id from a chat name
 
 When the user refers to a chat by name and you need its `chat_id` for the `--chat-id` filter, use [`+chat-search`](lark-im-chat-search.md) first:
