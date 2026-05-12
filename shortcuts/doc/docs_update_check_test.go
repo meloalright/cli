@@ -441,6 +441,28 @@ func TestCheckV2MarkdownCustomTags(t *testing.T) {
 			wantHint: true,
 			wantTag:  "<grid>",
 		},
+		// fenced code fence guards — tags inside ``` must not trigger hard error
+		{
+			name:     "grid tag inside fenced code block is not flagged",
+			content:  "Here is an example:\n```html\n<grid cols=\"2\"><column>A</column></grid>\n```\nEnd.",
+			wantHint: false,
+		},
+		{
+			name:     "lark-table inside fenced code block is not flagged",
+			content:  "```\n<lark-table><lark-tr><lark-td>x</lark-td></lark-tr></lark-table>\n```",
+			wantHint: false,
+		},
+		{
+			name:     "tag inside inline code span is not flagged",
+			content:  "Use the `<grid cols=\"2\">` element to create columns.",
+			wantHint: false,
+		},
+		{
+			name:     "tag outside fence is still flagged even when same tag is also in fence",
+			content:  "```\n<grid cols=\"2\">\n```\n\nActual usage: <grid cols=\"3\">content</grid>",
+			wantHint: true,
+			wantTag:  "<grid>",
+		},
 	}
 
 	for _, tt := range tests {

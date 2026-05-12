@@ -345,9 +345,14 @@ func CheckV2MarkdownCustomTags(content string) string {
 	if content == "" {
 		return ""
 	}
+	// Strip fenced code blocks and inline code spans so that tags described
+	// inside a code fence (e.g. a tutorial showing <grid cols="2">) do not
+	// trigger a hard validation error — the v2 parser would render those as
+	// inert code text, not as live markup.
+	scanned := stripMarkdownCodeRegions(content)
 	var found []string
 	for _, t := range v2MarkdownUnsupportedTags {
-		if strings.Contains(content, t.prefix) {
+		if strings.Contains(scanned, t.prefix) {
 			found = append(found, t.display)
 		}
 	}
