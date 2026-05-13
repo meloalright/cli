@@ -612,6 +612,26 @@ func TestWrapMarkdownAsPost_SegmentedBlankLinesWithSpaces(t *testing.T) {
 	}
 }
 
+func TestWrapMarkdownAsPost_HRTag(t *testing.T) {
+	got := wrapMarkdownAsPost("a\n\n---\n\nb")
+	content := decodePostContentForTest(t, got)
+	if len(content) != 5 {
+		t.Fatalf("paragraph count = %d, want 5, raw: %s", len(content), got)
+	}
+	first := decodePostParagraphForTest(t, got, 0)
+	if first["tag"] != "md" || first["text"] != "a" {
+		t.Fatalf("first paragraph = %#v, want md/a", first)
+	}
+	hr := decodePostParagraphForTest(t, got, 2)
+	if hr["tag"] != "hr" {
+		t.Fatalf("middle paragraph tag = %v, want hr", hr["tag"])
+	}
+	last := decodePostParagraphForTest(t, got, 4)
+	if last["tag"] != "md" || last["text"] != "b" {
+		t.Fatalf("last paragraph = %#v, want md/b", last)
+	}
+}
+
 func TestIsURL(t *testing.T) {
 	tests := []struct {
 		input string

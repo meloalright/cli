@@ -936,6 +936,10 @@ func buildSegmentedPost(markdown string) string {
 		if part.text == "" {
 			continue
 		}
+		if part.text == "---" {
+			content = append(content, []map[string]interface{}{{"tag": "hr"}})
+			continue
+		}
 		optimized := strings.Trim(optimizeMarkdownStyle(part.text), "\n")
 		if optimized == "" {
 			continue
